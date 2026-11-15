@@ -1,0 +1,36 @@
+name: 更新小米保固資料並發佈
+on:
+  schedule: [{ cron: '0 22 * * 0' }]   # 每週一台灣時間 06:00
+  workflow_dispatch: {}                 # 可在 Actions 頁面手動按「Run workflow」
+  push: { branches: [main] }
+permissions: { contents: write, pages: write, id-token: write }
+concurrency: { group: pages, cancel-in-progress: false }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 合併照片(上傳時分成 photos-1、photos-2 兩個資料夾)
+        run: |
+          mkdir -p public/img
+          for d in photos-*; do [ -d "$d" ] && cp -r "$d"/. public/img/ || true; done
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm install --no-audit --no-fund
+      - name: 抓取官網(失敗不會中斷,會沿用上次資料)
+        run: node scraper.js || echo "::warning::抓取失敗,沿用舊資料"
+      - name: 有變動就存回 repo
+        run: |
+          git config user.name "warranty-bot"; git config user.email "bot@users.noreply.github.com"
+          git add public/data.json
+          git diff --cached --quiet || (git commit -m "更新保固資料" && git push)
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: public }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: '${{ steps.d.outputs.page_url }}' }
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4
