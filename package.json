@@ -1,0 +1,1 @@
+{"name":"mi-warranty-app","version":"1.0.0","private":true,"scripts":{"start":"node server.js","refresh":"node scraper.js"},"dependencies":{"cheerio":"^1.0.0"}}
