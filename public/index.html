@@ -145,6 +145,11 @@ function sheetParts(txt,ex){const px=ex===true?'以換代修':ex===false?'維修
     const m=x.match(/^(.+?)\s*[=＝:：]\s*(.+?)(?:\s*[@＠]\s*([^#＃]+?))?(?:\s*[#＃]\s*(.+))?$/);if(!m)return null;
     const r=rowOf(m[1].trim(),m[2].trim(),m[4]!==undefined?m[4].trim():px);
     if(m[3])r.pills=[r.pill,/不保|無保/.test(r.value)?'':m[3].trim()].filter(Boolean);return r}).filter(Boolean)}
+function parsePx(px){const whole=[],part=[];(px||'').split(/[|｜、,，\n]+/).map(x=>x.trim()).filter(Boolean).forEach(x=>{const m=x.match(/^(.*?)\s*(以換代修|維修)$/);if(!m)return;const t=m[1].trim().replace(/[:：=＝]$/,'');if(t)part.push([t,m[2]]);else whole.push(m[2])});return{whole:whole[0]||'',part}}
+function applyPxRows(it,pp){if(!it.tiers||it.tiers.kind!=='parts')return;
+  const setP=(r,v)=>{r.pill=v;if(r.pills)r.pills=[v,...r.pills.filter(x=>x&&x!==v)]};
+  if(pp.whole)it.tiers.rows.forEach(r=>{if(!r.pill&&r.cls!=='dim')setP(r,pp.whole)});
+  pp.part.forEach(([t,v])=>it.tiers.rows.forEach(r=>{const l=r.label||'';if(!r.pill&&r.cls!=='dim'&&(l.includes(t)||t.includes(l)))setP(r,v)}))}
 function applySheet(rows){
   if(!rows||rows.length<2)return 0;
   const H=rows[0].map(h=>h.trim()),col=n=>H.findIndex(h=>h.startsWith(n));
@@ -178,11 +183,12 @@ function applySheet(rows){
       if(img&&!it.image)it.image=img;
       if(cp)it.compat=cp.split(/[|｜]/).map(x=>x.trim()).filter(Boolean);
       if(br)it.brand=br;
+      {const pp=parsePx(px);if(pp.whole&&it.exchange==null)it.exchange=pp.whole==='以換代修';applyPxRows(it,pp)}
       return}
     // 官網沒有的產品(補充項目):以表格為準
     const chg=(w&&w!==it.warranty)||(note&&note!==it.note);
     if(w){it.warranty=w;it.months=monthsFrom(w)}
-    if(/以換代修/.test(px))it.exchange=true;else if(/維修/.test(px))it.exchange=false;
+    const pp=parsePx(px);if(pp.whole)it.exchange=pp.whole==='以換代修';
     if(note)it.note=note;
     if(img)it.image=img;
     if(cp)it.compat=cp.split(/[|｜]/).map(x=>x.trim()).filter(Boolean);
@@ -191,6 +197,7 @@ function applySheet(rows){
     if(parts){const rr=sheetParts(parts,it.exchange);if(rr.length){rr[0].cls='hl';
       it.tiers={kind:'parts',rows:rr,rest:note?note.split(/[;;]/).map(x=>x.trim()).filter(Boolean):[],extra:''};it.group=it.group||false}}
     else if(chg){it.tiers=parseTiers(it)||partsOf(it)||null}
+    applyPxRows(it,pp);
   });
   return n}
 function buildReview(){
