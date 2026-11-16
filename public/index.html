@@ -130,13 +130,14 @@ async function getSheetRows(){
   const tabUrl=n=>gviz(id,'headers=1&sheet='+encodeURIComponent(n));
   let tabs=[];
   const dir=await fetchCsv(gviz(id,'headers=1&sheet='+encodeURIComponent('目錄')),null,'目錄');
-  if(dir){tabs=parseCsv(dir).map(r=>(r[0]||'').trim()).filter(x=>x&&!/^(分頁名稱|分頁|說明|目錄)$/.test(x));}
+  if(dir&&/分頁名稱/.test(dir.slice(0,300))){tabs=parseCsv(dir).map(r=>(r[0]||'').trim()).filter(x=>x&&!/^(分頁名稱|分頁|說明|目錄)$/.test(x));}
   if(!tabs.length)tabs=cfgTabs||DEF_TABS;
   tabs=[...new Set(tabs)];
   // 一次讀 3 個分頁,失敗的重試一次(手機網路同時開太多連線容易被丟掉)
   const res=new Array(tabs.length).fill(null);let next=0;
   const one=async i=>{for(let k=0;k<2&&!res[i];k++){const t=await fetchCsv(tabUrl(tabs[i]),k?dbg:null,tabs[i]);if(t){const r=toRows(t);if(r)res[i]=r;else if(k)dbg.push(tabs[i]+': 沒有「產品名稱」欄')}}};
   await Promise.all([0,1,2].map(async()=>{while(next<tabs.length){const i=next++;await one(i)}}));
+  const seen=new Set();res.forEach((r,i)=>{if(!r)return;const k=JSON.stringify(r.slice(0,3));if(seen.has(k)){res[i]=null;dbg.push(tabs[i]+': 找不到這個分頁(分頁名稱不符)')}else seen.add(k)});
   const good=res.filter(Boolean);
   let rows=null;const failed=res.length-good.length;
   if(good.length){rows=[good[0][0]];good.forEach(g=>g.slice(1).forEach(r=>{if(r.some(c=>(c||'').trim()))rows.push(r)}))}
